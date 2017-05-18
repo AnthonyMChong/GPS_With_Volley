@@ -130,8 +130,10 @@ public class MainActivity extends ActionBarActivity implements
     protected String mLatitudeLabel;
     protected String mLongitudeLabel;
     protected String mLastUpdateTimeLabel;
+    String modeParam = "walking";
 
-    String SendURL = "http://requestb.in/148q92b1";
+    String SendURL = "https://routeme2app.mybluemix.net/api/check_location";
+    //String SendURL = "http://requestb.in/1i6htji1";
     String BasicAuth;
 
     /**
@@ -231,6 +233,8 @@ public class MainActivity extends ActionBarActivity implements
                 mLastUpdateTime = savedInstanceState.getString(LAST_UPDATED_TIME_STRING_KEY);
             }
             updateUI();
+
+
         }
     }
 
@@ -298,51 +302,14 @@ public class MainActivity extends ActionBarActivity implements
             mRequestingLocationUpdates = false;
             setButtonsEnabledState();
             stopLocationUpdates();
+
         }
+        //BasicAuth = Base64.encodeToString(BasicAuth.getBytes(), Base64.DEFAULT);
 
-        BasicAuth = emailinfo + ":" + pwinfo;
-        try {
-            URLEncoder.encode(BasicAuth, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        BasicAuth = Base64.encodeToString(BasicAuth.getBytes(), Base64.DEFAULT);
-
-        HashMap<String, String> myparams = new HashMap<String, String>();
-        myparams.put("traveler_id", "Anthony123");
-        myparams.put("trip_instance_id", "BusStop456");
-        myparams.put("latitude", Double.toString(mCurrentLocation.getLatitude()));
-        myparams.put("longitude", Double.toString(mCurrentLocation.getLongitude()));
-
-        JsonObjectRequest myjsonObjectRequest = new JsonObjectRequest(SendURL,new JSONObject(myparams),
-                new Response.Listener<JSONObject>(){
-                    @Override
-                    public void  onResponse (JSONObject response){
-                        try{
-                            VolleyLog.v("Response:%n %s", response.toString(4));
-                        } catch (JSONException e){
-                            e.printStackTrace();
-                        }
-                    }
-                }, new Response.ErrorListener(){
-                    @Override
-                    public void onErrorResponse (VolleyError error) {
-                        Toast.makeText (MainActivity.this,"Error", Toast.LENGTH_SHORT).show();
-                        error.printStackTrace();
-                    }
-                }) {
-            @Override
-            public Map<String, String> getHeaders() throws AuthFailureError {
-                HashMap<String, String> headers = new HashMap<String, String>();
-                headers.put("Authorization", "Basic " + BasicAuth);
-                //headers.put("password", "manduchi123");
-                return headers;
-            }
-        };
-        MySingleton.getInstance(MainActivity.this).addToRequestQueue(myjsonObjectRequest);
     }
 
     public void EmailButtonHandler (View view) {
+        /*
         Intent i = new Intent(Intent.ACTION_SEND);
         i.setType("message/rfc822");
         i.putExtra(Intent.EXTRA_EMAIL  , new String[]{"anmchong@ucsc.edu"});
@@ -353,6 +320,12 @@ public class MainActivity extends ActionBarActivity implements
             startActivity(Intent.createChooser(i, "Send mail..."));
         } catch (android.content.ActivityNotFoundException ex) {
             Toast.makeText(MainActivity.this, "There are no email clients installed.", Toast.LENGTH_SHORT).show();
+        }
+        */
+        if (modeParam == "bus"){
+            modeParam = "walking";
+        }else if (modeParam == "walking") {
+            modeParam = "bus";
         }
     }
 
@@ -406,7 +379,7 @@ public class MainActivity extends ActionBarActivity implements
             double RAD = 0.000008998719243599958;
             double LLdistance =Math.sqrt(Math.pow(mCurrentLocation.getLatitude() - BecLatFloat, 2) +
                     Math.pow(mCurrentLocation.getLongitude() - BecLongFloat, 2)) / RAD;
-            LLdist.setText(Double.toString(LLdistance));
+            //LLdist.setText(Double.toString(LLdistance));
 
             // distance from LL methods from
             //http://stackoverflow.com/questions/639695/how-to-convert-latitude-or-longitude-to-meters
@@ -494,13 +467,78 @@ public class MainActivity extends ActionBarActivity implements
     /**
      * Callback that fires when the location changes.
      */
+    //Boolean NearestParam = true;
+    String  NearestParam = "true";
+
     @Override
     public void onLocationChanged(Location location) {
+        LLdist.setText(modeParam);
         mCurrentLocation = location;
         mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
         updateUI();
         Toast.makeText(this, getResources().getString(R.string.location_updated_message),
                 Toast.LENGTH_SHORT).show();
+
+
+        HashMap<String, String> myparams = new HashMap<String, String>();
+        myparams.put("traveler_id", "50965d1fa6e7625057c1615418819dc1b9f89139924646397b43969c9ac27a17");
+        //myparams.put("trip_instance_id", "300d531a5df6cad5a7f76f6043df67dd");
+        myparams.put("trip_instance_id", "6bfe1518cff090e25be2a81eba9037f6");
+        myparams.put("latitude", Double.toString(mCurrentLocation.getLatitude()));
+        myparams.put("longitude", Double.toString(mCurrentLocation.getLongitude()));
+        myparams.put("nearest", NearestParam );
+        float AccuracyParam = mCurrentLocation.getAccuracy() ;
+        myparams.put("accuracy_dist", Float.toString(AccuracyParam));
+        myparams.put("mode", modeParam );
+
+        BasicAuth = "testing@aol.com" + ":" + "testing";
+        BasicAuth = Base64.encodeToString(BasicAuth.getBytes(), Base64.DEFAULT);
+
+        Log.d("ServerMSGERROR: ", (new JSONObject(myparams)).toString());
+
+        JsonObjectRequest myjsonObjectRequest = new JsonObjectRequest(Request.Method.POST,SendURL,new JSONObject(myparams),
+                new Response.Listener<JSONObject>(){
+                    @Override
+                    public void  onResponse (JSONObject response){
+                        try{
+                            Toast.makeText (MainActivity.this,"Response:" + response.toString(4), Toast.LENGTH_SHORT).show();
+                            VolleyLog.v("Response:%n %s", response.toString(4));
+                            Log.d("ServerMSGERROR: ", response.toString(4));
+
+                        } catch (JSONException e){
+                            e.printStackTrace();
+                        }
+                    }
+                }, new Response.ErrorListener(){
+            @Override
+            public void onErrorResponse (VolleyError error) {
+                Toast.makeText (MainActivity.this,"Error:" + error, Toast.LENGTH_SHORT).show();
+                error.printStackTrace();
+            }
+        }) {
+
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> headers = new HashMap<String, String>();
+                headers.put("Authorization", "Basic " + BasicAuth);
+                //headers.put("Content-Type", "multipart/form-data; charset=utf-8");
+                return headers;
+            }
+
+
+            @Override
+            public String getBodyContentType()
+            {
+                return "application/json; charset=utf-8";
+                //return "multipart/form-data";
+            }
+
+
+
+
+        };
+        MySingleton.getInstance(MainActivity.this).addToRequestQueue(myjsonObjectRequest);
+
     }
 
     @Override
