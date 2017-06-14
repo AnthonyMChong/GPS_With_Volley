@@ -18,6 +18,10 @@ package com.google.android.gms.location.sample.locationupdates;
 
 import android.content.Intent;
 import android.content.res.AssetManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
@@ -72,14 +76,14 @@ import java.util.Map;
  * https://github.com/googlesamples/android-google-accounts/tree/master/QuickStart.
  */
 public class MainActivity extends ActionBarActivity implements
-        ConnectionCallbacks, OnConnectionFailedListener, LocationListener {
+        ConnectionCallbacks, OnConnectionFailedListener, LocationListener, SensorEventListener{
 
     protected static final String TAG = "location-updates-sample";
 
     /**
      * The desired interval for location updates. Inexact. Updates may be more or less frequent.
      */
-    public static final long UPDATE_INTERVAL_IN_MILLISECONDS = 5000;
+    public static final long UPDATE_INTERVAL_IN_MILLISECONDS = 3000;
 
     /**
      * The fastest rate for active location updates. Exact. Updates will never be more frequent
@@ -120,6 +124,8 @@ public class MainActivity extends ActionBarActivity implements
     TextView Bec1LatDiff;
     TextView Bec1LongDiff;
     TextView mAccuracyText;
+    TextView AccelTextX;
+    TextView AccelTextY;
     EditText LLdist;
     String DataHolder = "";
 
@@ -132,8 +138,8 @@ public class MainActivity extends ActionBarActivity implements
     protected String mLastUpdateTimeLabel;
     String modeParam = "walking";
 
-    String SendURL = "https://routeme2app.mybluemix.net/api/check_location";
-    //String SendURL = "http://requestb.in/1i6htji1";
+    //String SendURL = "https://routeme2app.mybluemix.net/api/check_location";
+    String SendURL = "https://requestb.in/1bv216e1";
     String BasicAuth;
 
     /**
@@ -146,6 +152,16 @@ public class MainActivity extends ActionBarActivity implements
      * Time when the location was updated represented as a String.
      */
     protected String mLastUpdateTime;
+
+    private SensorManager mySensorManager;
+    private Sensor AccelSensor;
+    boolean mInitialized;
+    final double NOISEthrsh = 0.05;
+    float mLastX;
+    float mLastY;
+    float mLastZ;
+
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -165,6 +181,9 @@ public class MainActivity extends ActionBarActivity implements
         Bec1LatDiff = (TextView) findViewById(R.id.LatDiff);
         Bec1LongDiff = (TextView) findViewById(R.id.LongDiff);
         LLdist = (EditText) findViewById(R.id.LLdist) ;
+        AccelTextX = (TextView) findViewById(R.id.AccelTextX);
+        AccelTextY = (TextView) findViewById(R.id.AccelTextY);
+        mInitialized = false;
 
         // Set labels.
         mLatitudeLabel = getResources().getString(R.string.latitude_label);
@@ -195,6 +214,10 @@ public class MainActivity extends ActionBarActivity implements
         BecLat.setText(fileIndividual[3]);      // fill in box with default lat
         BecLong.setText(fileIndividual[4]);     // fill in box with default long
 
+        mySensorManager = (SensorManager) getSystemService(this.SENSOR_SERVICE);
+        AccelSensor = mySensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mySensorManager.registerListener((SensorEventListener) this, AccelSensor, SensorManager.SENSOR_DELAY_NORMAL);
+
         // Update values using data stored in the Bundle.
         updateValuesFromBundle(savedInstanceState);
 
@@ -203,7 +226,6 @@ public class MainActivity extends ActionBarActivity implements
         buildGoogleApiClient();
 
     }
-
     /**
      * Updates fields based on data stored in the bundle.
      *
@@ -309,7 +331,7 @@ public class MainActivity extends ActionBarActivity implements
     }
 
     public void EmailButtonHandler (View view) {
-        /*
+
         Intent i = new Intent(Intent.ACTION_SEND);
         i.setType("message/rfc822");
         i.putExtra(Intent.EXTRA_EMAIL  , new String[]{"anmchong@ucsc.edu"});
@@ -321,7 +343,7 @@ public class MainActivity extends ActionBarActivity implements
         } catch (android.content.ActivityNotFoundException ex) {
             Toast.makeText(MainActivity.this, "There are no email clients installed.", Toast.LENGTH_SHORT).show();
         }
-        */
+
         if (modeParam == "bus"){
             modeParam = "walking";
         }else if (modeParam == "walking") {
@@ -367,8 +389,6 @@ public class MainActivity extends ActionBarActivity implements
                 mCurrentLocation.getAccuracy()));
         mLastUpdateTimeTextView.setText(String.format("%s: %s", mLastUpdateTimeLabel,
                 mLastUpdateTime));
-        DataHolder += "" + String.format("%f,%f,%f\n",mCurrentLocation.getLatitude()
-                , mCurrentLocation.getLongitude(), mCurrentLocation.getAccuracy() );
         if (BecLat.getText() != null && BecLong.getText() !=null ){
             float BecLatFloat = new Float(BecLat.getText().toString()).floatValue();
             float BecLongFloat = new Float(BecLong.getText().toString()).floatValue();
@@ -376,9 +396,6 @@ public class MainActivity extends ActionBarActivity implements
                     mCurrentLocation.getLatitude() - BecLatFloat));
             Bec1LongDiff.setText(String.format("%s: %f", mLongitudeLabel,
                     mCurrentLocation.getLongitude() - BecLongFloat));
-            double RAD = 0.000008998719243599958;
-            double LLdistance =Math.sqrt(Math.pow(mCurrentLocation.getLatitude() - BecLatFloat, 2) +
-                    Math.pow(mCurrentLocation.getLongitude() - BecLongFloat, 2)) / RAD;
             //LLdist.setText(Double.toString(LLdistance));
 
             // distance from LL methods from
@@ -472,12 +489,13 @@ public class MainActivity extends ActionBarActivity implements
 
     @Override
     public void onLocationChanged(Location location) {
+        Toast.makeText(MainActivity.this, "Updated", Toast.LENGTH_SHORT).show();
         LLdist.setText(modeParam);
         mCurrentLocation = location;
         mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
         updateUI();
-        Toast.makeText(this, getResources().getString(R.string.location_updated_message),
-                Toast.LENGTH_SHORT).show();
+//        Toast.makeText(this, getResources().getString(R.string.location_updated_message),
+//                Toast.LENGTH_SHORT).show();
 
 
         HashMap<String, String> myparams = new HashMap<String, String>();
@@ -496,48 +514,8 @@ public class MainActivity extends ActionBarActivity implements
 
         Log.d("ServerMSGERROR: ", (new JSONObject(myparams)).toString());
 
-        JsonObjectRequest myjsonObjectRequest = new JsonObjectRequest(Request.Method.POST,SendURL,new JSONObject(myparams),
-                new Response.Listener<JSONObject>(){
-                    @Override
-                    public void  onResponse (JSONObject response){
-                        try{
-                            Toast.makeText (MainActivity.this,"Response:" + response.toString(4), Toast.LENGTH_SHORT).show();
-                            VolleyLog.v("Response:%n %s", response.toString(4));
-                            Log.d("ServerMSGERROR: ", response.toString(4));
-
-                        } catch (JSONException e){
-                            e.printStackTrace();
-                        }
-                    }
-                }, new Response.ErrorListener(){
-            @Override
-            public void onErrorResponse (VolleyError error) {
-                Toast.makeText (MainActivity.this,"Error:" + error, Toast.LENGTH_SHORT).show();
-                error.printStackTrace();
-            }
-        }) {
-
-            @Override
-            public Map<String, String> getHeaders() throws AuthFailureError {
-                HashMap<String, String> headers = new HashMap<String, String>();
-                headers.put("Authorization", "Basic " + BasicAuth);
-                //headers.put("Content-Type", "multipart/form-data; charset=utf-8");
-                return headers;
-            }
-
-
-            @Override
-            public String getBodyContentType()
-            {
-                return "application/json; charset=utf-8";
-                //return "multipart/form-data";
-            }
-
-
-
-
-        };
-        MySingleton.getInstance(MainActivity.this).addToRequestQueue(myjsonObjectRequest);
+        DataHolder += "" + mLastUpdateTime + "," +String.format("%f,%f,%f\n",mCurrentLocation.getLatitude()
+                , mCurrentLocation.getLongitude(), mCurrentLocation.getAccuracy() );
 
     }
 
@@ -554,6 +532,47 @@ public class MainActivity extends ActionBarActivity implements
         // Refer to the javadoc for ConnectionResult to see what error codes might be returned in
         // onConnectionFailed.
         Log.i(TAG, "Connection failed: ConnectionResult.getErrorCode() = " + result.getErrorCode());
+    }
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        float x = event.values[0];
+        float y = event.values[1];
+        float z = event.values[2];
+        if (!mInitialized) {
+            mLastX = x;
+            mLastY = y;
+            mLastZ = z;
+            mInitialized = true;
+        } else {
+            float deltaX = Math.abs(mLastX - x);
+            float deltaY = Math.abs(mLastY - y);
+            float deltaZ = Math.abs(mLastZ - z);
+            if (deltaX < NOISEthrsh) deltaX = (float)0.0;
+            if (deltaY < NOISEthrsh) deltaY = (float)0.0;
+            if (deltaZ < NOISEthrsh) deltaZ = (float)0.0;
+            mLastX = x;
+            mLastY = y;
+            mLastZ = z;
+            //String AccelX = "X: " + deltaX +", Y: " + deltaY + ", Z: " + deltaZ;
+            AccelTextX.setText("X: " + deltaX);
+            AccelTextY.setText("Y: " + deltaY);
+//            tvX.setText(Float.toString(deltaX));
+//            tvY.setText(Float.toString(deltaY));
+//            tvZ.setText(Float.toString(deltaZ));
+//            iv.setVisibility(View.VISIBLE);
+//            if (deltaX > deltaY) {
+//                iv.setImageResource(R.drawable.horizontal);
+//            } else if (deltaY > deltaX) {
+//                iv.setImageResource(R.drawable.vertical);
+//            } else {
+//                iv.setVisibility(View.INVISIBLE);
+//            }
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int i) {
+
     }
 
 
